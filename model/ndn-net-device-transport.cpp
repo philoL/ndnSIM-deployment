@@ -28,6 +28,9 @@
 #include <ndn-cxx/data.hpp>
 
 #include "ns3/queue.h"
+#include "ns3/traffic-control-layer.h"
+#include "ns3/ipv4-l3-protocol.h"
+#include "ns3/ipv4-queue-disc-item.h"
 
 NS_LOG_COMPONENT_DEFINE("ndn.NetDeviceTransport");
 
@@ -43,6 +46,7 @@ NetDeviceTransport::NetDeviceTransport(Ptr<Node> node,
                                        ::ndn::nfd::LinkType linkType)
   : m_netDevice(netDevice)
   , m_node(node)
+  , m_tc(0)
 {
   this->setLocalUri(FaceUri(localUri));
   this->setRemoteUri(FaceUri(remoteUri));
@@ -110,16 +114,32 @@ NetDeviceTransport::doSend(Packet&& packet)
 {
   NS_LOG_FUNCTION(this << "Sending packet from netDevice with URI"
                   << this->getLocalUri());
-
+  NS_LOG_INFO("TrafficControlLayer: " << m_tc);
+  
   // convert NFD packet to NS3 packet
   BlockHeader header(packet);
-
   Ptr<ns3::Packet> ns3Packet = Create<ns3::Packet>();
   ns3Packet->AddHeader(header);
+  NS_LOG_INFO("ns3Packet: " << ns3Packet);
 
-  // send the NS3 packet
-  m_netDevice->Send(ns3Packet, m_netDevice->GetBroadcast(),
-                    L3Protocol::ETHERNET_FRAME_TYPE);
+  if (m_tc != 0) {
+    Ipv4Header ipHeader;
+    ipHeader.SetSource (Ipv4Address ("10.0.0.2"));
+    ipHeader.SetDestination (Ipv4Address ("10.0.0.10"));
+    ipHeader.SetProtocol (0);
+    ipHeader.SetPayloadSize (ns3Packet->GetSize ());
+    ipHeader.SetTtl (255);
+    //ipHeader.SetDscp (dscp);
+    ipHeader.SetEcn (Ipv4Header::ECN_ECT1);
+    //p->AddHeader (ipHeader);
+    NS_LOG_INFO("Dummy ip header: " << ipHeader);
+    m_tc->Send (m_netDevice, Create<Ipv4QueueDiscItem> (ns3Packet, m_netDevice->GetBroadcast (), Ipv4L3Protocol::PROT_NUMBER, ipHeader));
+  } else {
+       // send the NS3 packet
+    m_netDevice->Send(ns3Packet, m_netDevice->GetBroadcast(),
+                      L3Protocol::ETHERNET_FRAME_TYPE);
+
+  }
 }
 
 // callback

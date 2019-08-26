@@ -243,6 +243,11 @@ public:
   static void
   ProcessWarmupEvents();
 
+  /**
+   * @brief create an object from its TypeId and aggregates it to the node
+   */
+  static void 
+  CreateAndAggregateObjectFromTypeId (Ptr<Node> node, const std::string typeId);
 private:
   void
   doInstall(Ptr<Node> node) const;

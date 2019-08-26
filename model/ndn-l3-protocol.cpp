@@ -28,6 +28,7 @@
 #include "ns3/object-vector.h"
 #include "ns3/pointer.h"
 #include "ns3/simulator.h"
+#include "ns3/traffic-control-layer.h"
 
 #include "ndn-net-device-transport.hpp"
 
@@ -255,6 +256,21 @@ void
 L3Protocol::setCsReplacementPolicy(const PolicyCreationCallback& policy)
 {
   m_impl->m_policy = policy;
+}
+
+void
+L3Protocol::setTrafficControlLayerOnAll()
+{
+  for (auto& i : m_impl->m_forwarder->getFaceTable()) {
+    auto transport = dynamic_cast<NetDeviceTransport*>(i.getTransport());
+    if (transport == nullptr)
+      continue;
+    
+    Ptr<TrafficControlLayer> tc = transport->GetNode ()->GetObject<TrafficControlLayer> ();
+    if (tc != 0) {
+      transport->setTrafficControlLayer(tc);
+    }
+  }
 }
 
 void

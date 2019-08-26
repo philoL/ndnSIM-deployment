@@ -170,6 +170,12 @@ public:
   void
   setCsReplacementPolicy(const PolicyCreationCallback& policy);
 
+  /**
+   * \brief Set traffic control layer (if existed) on all network devices
+   */
+  void
+  setTrafficControlLayerOnAll();
+
 public: // Workaround for python bindings
   static Ptr<L3Protocol>
   getL3Protocol(Ptr<Object> node);

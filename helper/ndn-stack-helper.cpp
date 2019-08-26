@@ -26,6 +26,7 @@
 #include "ns3/point-to-point-channel.h"
 #include "ns3/node-list.h"
 #include "ns3/simulator.h"
+#include "ns3/traffic-control-layer.h"
 
 #if HAVE_NS3_VISUALIZER
 #include "../../visualizer/model/visual-simulator-impl.h"
@@ -218,6 +219,9 @@ StackHelper::doInstall(Ptr<Node> node) const
 
     this->createAndRegisterFace(node, ndn, device);
   }
+
+  // Aggregate TC layer
+  CreateAndAggregateObjectFromTypeId (node, "ns3::TrafficControlLayer");
 }
 
 void
@@ -323,7 +327,8 @@ StackHelper::PointToPointNetDeviceCallback(Ptr<Node> node, Ptr<L3Protocol> ndn,
 
   ndn->addFace(face);
   NS_LOG_LOGIC("Node " << node->GetId() << ": added Face as face #"
-                       << face->getLocalUri());
+                       << face->getLocalUri() << " to remote face #"
+                       << constructFaceUri(remoteNetDevice));
 
   return face;
 }
@@ -338,21 +343,27 @@ StackHelper::Install(const std::string& nodeName) const
 void
 StackHelper::Update(Ptr<Node> node)
 {
+  NS_LOG_INFO("node: " << node << " L3: " << node->GetObject<L3Protocol>() << " netdev: " << node->GetNDevices());
   if (node->GetObject<L3Protocol>() == 0) {
     Install(node);
     return;
   }
 
   Ptr<L3Protocol> ndn = node->GetObject<L3Protocol>();
-
+  ndn->setTrafficControlLayerOnAll();
+  
   for (uint32_t index = 0; index < node->GetNDevices(); index++) {
 
     Ptr<NetDevice> device = node->GetDevice(index);
-
+    
     if (ndn->getFaceByNetDevice(device) == nullptr) {
-      this->createAndRegisterFace(node, ndn, device);
+    //  this->createAndRegisterFace(node, ndn, device);
+       NS_LOG_INFO("null netdevice: " << device);
+    } else {
+      NS_LOG_INFO("netdevice: " << device);
     }
   }
+  
 }
 
 void
@@ -453,6 +464,14 @@ StackHelper::ProcessWarmupEvents()
 #endif // HAVE_NS3_VISUALIZER
 }
 
+void
+StackHelper::CreateAndAggregateObjectFromTypeId (Ptr<Node> node, const std::string typeId)
+{
+  ObjectFactory factory;
+  factory.SetTypeId (typeId);
+  Ptr<Object> protocol = factory.Create <Object> ();
+  node->AggregateObject (protocol);
+}
 
 } // namespace ndn
 } // namespace ns3

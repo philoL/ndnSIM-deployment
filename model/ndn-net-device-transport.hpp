@@ -31,6 +31,7 @@
 
 #include "ns3/point-to-point-net-device.h"
 #include "ns3/channel.h"
+#include "ns3/traffic-control-layer.h"
 
 namespace ns3 {
 namespace ndn {
@@ -54,8 +55,20 @@ public:
   Ptr<NetDevice>
   GetNetDevice() const;
 
+  Ptr<Node>
+  GetNode() const
+  {
+    return m_node;
+  }
+
   virtual ssize_t
   getSendQueueLength() final;
+
+  void
+  setTrafficControlLayer(Ptr<TrafficControlLayer> tc) 
+  {
+    m_tc = tc;
+  }
 
 private:
   virtual void
@@ -73,6 +86,7 @@ private:
 
   Ptr<NetDevice> m_netDevice; ///< \brief Smart pointer to NetDevice
   Ptr<Node> m_node;
+  Ptr<TrafficControlLayer> m_tc;
 };
 
 } // namespace ndn
