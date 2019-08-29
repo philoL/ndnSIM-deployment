@@ -79,6 +79,10 @@ NetDeviceTransport::NetDeviceTransport(Ptr<Node> node,
   m_node->RegisterProtocolHandler(MakeCallback(&NetDeviceTransport::receiveFromNetDevice, this),
                                   L3Protocol::ETHERNET_FRAME_TYPE, m_netDevice,
                                   true /*promiscuous mode*/);
+
+  m_node->RegisterProtocolHandler(MakeCallback(&NetDeviceTransport::receiveFromNetDevice, this),
+                                  0x0800, m_netDevice,
+                                  true /*promiscuous mode*/);
 }
 
 NetDeviceTransport::~NetDeviceTransport()
@@ -152,15 +156,29 @@ NetDeviceTransport::receiveFromNetDevice(Ptr<NetDevice> device,
 {
   NS_LOG_FUNCTION(device << p << protocol << from << to << packetType);
 
-  // Convert NS3 packet to NFD packet
-  Ptr<ns3::Packet> packet = p->Copy();
+  if (protocol == 0x0800) { //ipv4 header
+    Ptr<ns3::Packet> packet = p->Copy();
 
-  BlockHeader header;
-  packet->RemoveHeader(header);
+    Ipv4Header ipHeader;
+    packet->RemoveHeader(ipHeader);  
+    NS_LOG_DEBUG(ipHeader);    
 
-  auto nfdPacket = Packet(std::move(header.getBlock()));
+    BlockHeader header;
+    packet->RemoveHeader(header);
+    auto ndnPacket = Packet(std::move(header.getBlock()));
+    this->receive(std::move(ndnPacket));
+  }
+  else { //NDN packet
+    // Convert NS3 packet to NFD packet
+    Ptr<ns3::Packet> packet = p->Copy();
 
-  this->receive(std::move(nfdPacket));
+    BlockHeader header;
+    packet->RemoveHeader(header);
+
+    auto nfdPacket = Packet(std::move(header.getBlock()));
+
+    this->receive(std::move(nfdPacket));
+  }
 }
 
 Ptr<NetDevice>

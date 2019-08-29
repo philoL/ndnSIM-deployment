@@ -268,6 +268,7 @@ L3Protocol::setTrafficControlLayerOnAll()
     
     Ptr<TrafficControlLayer> tc = transport->GetNode ()->GetObject<TrafficControlLayer> ();
     if (tc != 0) {
+      tc->ScanDevices();
       transport->setTrafficControlLayer(tc);
     }
   }

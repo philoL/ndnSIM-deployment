@@ -57,6 +57,15 @@ NodeContainer n2n3;
 NodeContainer n3n4;
 NodeContainer n3n5;
 
+void
+print_net_device_info(NodeContainer& nodes)
+{
+  for (auto i = nodes.Begin(); i != nodes.End(); ++i) {
+    auto j = *i;
+    NS_LOG_INFO("All netdevices info - Node: " << j << "  netdev: " << j->GetNDevices());
+  }
+}
+
 int 
 main(int argc, char* argv[])
 {
@@ -66,7 +75,7 @@ main(int argc, char* argv[])
   Config::SetDefault("ns3::QueueBase::MaxSize", StringValue("20p"));
 
    std::string aredLinkDataRate = "1.5Mbps";
-   std::string aredLinkDelay = "20ms";
+   std::string aredLinkDelay = "100ms";
 
   // Read optional command-line parameters (e.g., enable visualizer with ./waf --run=<> --visualize
   CommandLine cmd;
@@ -98,12 +107,31 @@ main(int argc, char* argv[])
   NetDeviceContainer devn3n4;
   NetDeviceContainer devn3n5;
 
-  devn0n2 = p2p.Install(n0n2); 
-  devn1n2 = p2p.Install(n1n2); 
-  devn2n3 = p2p.Install(n2n3); 
-  devn3n4 = p2p.Install(n3n4); 
-  devn3n5 = p2p.Install(n3n5); 
-  
+  p2p.SetQueue ("ns3::DropTailQueue");
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
+  devn0n2 = p2p.Install (n0n2);
+
+  p2p.SetQueue ("ns3::DropTailQueue");
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
+  devn1n2 = p2p.Install (n1n2);
+
+  p2p.SetQueue ("ns3::DropTailQueue");
+  p2p.SetDeviceAttribute ("DataRate", StringValue (aredLinkDataRate));
+  p2p.SetChannelAttribute ("Delay", StringValue ("100ms"));
+  devn2n3 = p2p.Install (n2n3);
+
+  p2p.SetQueue ("ns3::DropTailQueue");
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
+  devn3n4 = p2p.Install (n3n4);
+
+  p2p.SetQueue ("ns3::DropTailQueue");
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("3ms"));
+  devn3n5 = p2p.Install (n3n5);
+ 
   // Install NDN stack on all nodes
   ndn::StackHelper ndnHelper;
   ndnHelper.SetDefaultRoutes(true);
@@ -118,7 +146,6 @@ main(int argc, char* argv[])
   Config::SetDefault ("ns3::RedQueueDisc::QW", DoubleValue (0.002));
   Config::SetDefault ("ns3::RedQueueDisc::MinTh", DoubleValue (5));
   Config::SetDefault ("ns3::RedQueueDisc::MaxTh", DoubleValue (15));
-
   Config::SetDefault ("ns3::RedQueueDisc::ARED", BooleanValue (true));
   Config::SetDefault ("ns3::RedQueueDisc::UseHardDrop", BooleanValue (false));
   Config::SetDefault ("ns3::RedQueueDisc::LInterm", DoubleValue (10));
@@ -132,40 +159,15 @@ main(int argc, char* argv[])
   tchPfifo.AddInternalQueues (handle, 3, "ns3::DropTailQueue", "MaxSize", StringValue ("1000p"));
  
   TrafficControlHelper tchRed;
-  tchRed.SetRootQueueDisc ("ns3::RedQueueDisc", "LinkBandwidth", StringValue (aredLinkDataRate),
+  uint16_t handle1 = tchRed.SetRootQueueDisc ("ns3::RedQueueDisc", "LinkBandwidth", StringValue (aredLinkDataRate),
                            "LinkDelay", StringValue (aredLinkDelay));
+  tchRed.AddInternalQueues (handle1, 3, "ns3::DropTailQueue", "MaxSize", StringValue ("1000p"));
 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("0ms"));
-  devn0n2 = p2p.Install (n0n2);
-  NS_LOG_INFO ("install tchPfifo n0n2");
   tchPfifo.Install (devn0n2);
-  NS_LOG_INFO ("after");
- 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
-  devn1n2 = p2p.Install (n1n2);
   tchPfifo.Install (devn1n2);
- 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue (aredLinkDataRate));
-  p2p.SetChannelAttribute ("Delay", StringValue ("100ms"));
-  devn2n3 = p2p.Install (n2n3);
   // only backbone link has ARED queue disc
   queueDiscs = tchRed.Install (devn2n3);
- 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
-  devn3n4 = p2p.Install (n3n4);
   tchPfifo.Install (devn3n4);
- 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("3ms"));
-  devn3n5 = p2p.Install (n3n5);
   tchPfifo.Install (devn3n5);
 
   // ndn-stack-helper update
@@ -179,7 +181,7 @@ main(int argc, char* argv[])
   ndn::AppHelper consumerHelper("ns3::ndn::ConsumerCbr");
   // Consumer will request /prefix/0, /prefix/1, ...
   consumerHelper.SetPrefix("/prefix");
-  consumerHelper.SetAttribute("Frequency", StringValue("10")); // 10 interests a second
+  consumerHelper.SetAttribute("Frequency", StringValue("500")); // 10 interests a second
   auto apps = consumerHelper.Install(nodes.Get(0));                // first node
   apps.Stop(Seconds(10.0)); // stop the consumer app at 10 seconds mark
 
@@ -188,7 +190,7 @@ main(int argc, char* argv[])
   // Producer will reply to all requests starting with /prefix
   producerHelper.SetPrefix("/prefix");
   producerHelper.SetAttribute("PayloadSize", StringValue("1024"));
-  producerHelper.Install(nodes.Get(2)); // last node
+  producerHelper.Install(nodes.Get(4)); // last node
 
   Simulator::Stop(Seconds(20.0));
 
@@ -198,6 +200,12 @@ main(int argc, char* argv[])
   if (true) {
      std::cout << "*** ARED stats from Node 2 queue ***" << std::endl;
      std::cout << st << std::endl;
+   }
+
+  QueueDisc::Stats st1 = queueDiscs.Get (1)->GetStats ();
+  if (true) {
+     std::cout << "*** ARED stats from Node 3 queue ***" << std::endl;
+     std::cout << st1 << std::endl;
    }
 
   Simulator::Destroy();

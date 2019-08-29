@@ -185,6 +185,7 @@ StackHelper::Install(Ptr<Node> node) const
 void
 StackHelper::doInstall(Ptr<Node> node) const
 {
+  NS_LOG_INFO("Before install: node: " << node << " L3: " << node->GetObject<L3Protocol>() << " netdev: " << node->GetNDevices());
   // async install to ensure proper context
   Ptr<L3Protocol> ndn = m_ndnFactory.Create<L3Protocol>();
 
@@ -222,6 +223,8 @@ StackHelper::doInstall(Ptr<Node> node) const
 
   // Aggregate TC layer
   CreateAndAggregateObjectFromTypeId (node, "ns3::TrafficControlLayer");
+
+  NS_LOG_INFO("After install: node: " << node << " L3: " << node->GetObject<L3Protocol>() << " netdev: " << node->GetNDevices());
 }
 
 void
@@ -357,10 +360,7 @@ StackHelper::Update(Ptr<Node> node)
     Ptr<NetDevice> device = node->GetDevice(index);
     
     if (ndn->getFaceByNetDevice(device) == nullptr) {
-    //  this->createAndRegisterFace(node, ndn, device);
-       NS_LOG_INFO("null netdevice: " << device);
-    } else {
-      NS_LOG_INFO("netdevice: " << device);
+      this->createAndRegisterFace(node, ndn, device);
     }
   }
   
