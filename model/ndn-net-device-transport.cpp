@@ -26,9 +26,12 @@
 #include <ndn-cxx/encoding/block.hpp>
 #include <ndn-cxx/interest.hpp>
 #include <ndn-cxx/data.hpp>
+#include <ndn-cxx/lp/packet.hpp>
+#include <ndn-cxx/lp/fields.hpp>
 
 #include "ns3/queue.h"
 #include "ns3/traffic-control-layer.h"
+#include "ns3/ipv4-header.h"
 #include "ns3/ipv4-l3-protocol.h"
 #include "ns3/ipv4-queue-disc-item.h"
 
@@ -162,11 +165,19 @@ NetDeviceTransport::receiveFromNetDevice(Ptr<NetDevice> device,
     Ipv4Header ipHeader;
     packet->RemoveHeader(ipHeader);  
     NS_LOG_DEBUG(ipHeader);    
-
+   
     BlockHeader header;
     packet->RemoveHeader(header);
-    auto ndnPacket = Packet(std::move(header.getBlock()));
-    this->receive(std::move(ndnPacket));
+
+    if (ipHeader.GetEcn() == ns3::Ipv4Header::ECN_CE) { // CE
+        //TODO: a more effecient way is needed to add the tag instead encode/decode
+        lp::Packet lpPacket(header.getBlock());
+        lpPacket.set<lp::CongestionMarkField>(1);
+        this->receive(std::move(Packet(std::move(lpPacket.wireEncode()))));
+    } else {
+        auto nfdPacket = Packet(std::move(header.getBlock()));
+        this->receive(std::move(nfdPacket));
+    }
   }
   else { //NDN packet
     // Convert NS3 packet to NFD packet
@@ -176,7 +187,7 @@ NetDeviceTransport::receiveFromNetDevice(Ptr<NetDevice> device,
     packet->RemoveHeader(header);
 
     auto nfdPacket = Packet(std::move(header.getBlock()));
-
+    
     this->receive(std::move(nfdPacket));
   }
 }
