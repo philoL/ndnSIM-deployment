@@ -96,6 +96,7 @@ NetDeviceTransport::~NetDeviceTransport()
 ssize_t
 NetDeviceTransport::getSendQueueLength()
 {
+  return nfd::face::QUEUE_UNSUPPORTED;
   PointerValue txQueueAttribute;
   if (m_netDevice->GetAttributeFailSafe("TxQueue", txQueueAttribute)) {
     Ptr<ns3::QueueBase> txQueue = txQueueAttribute.Get<ns3::QueueBase>();
@@ -122,7 +123,10 @@ NetDeviceTransport::doSend(Packet&& packet)
   NS_LOG_FUNCTION(this << "Sending packet from netDevice with URI"
                   << this->getLocalUri());
   NS_LOG_INFO("TrafficControlLayer: " << m_tc);
-  
+
+  lp::Packet lpPacket(packet.packet);
+  auto hasCM = lpPacket.has<lp::CongestionMarkField>();
+ 
   // convert NFD packet to NS3 packet
   BlockHeader header(packet);
   Ptr<ns3::Packet> ns3Packet = Create<ns3::Packet>();
@@ -137,7 +141,12 @@ NetDeviceTransport::doSend(Packet&& packet)
     ipHeader.SetPayloadSize (ns3Packet->GetSize ());
     ipHeader.SetTtl (255);
     //ipHeader.SetDscp (dscp);
-    ipHeader.SetEcn (Ipv4Header::ECN_ECT1);
+    if (hasCM) {
+       ipHeader.SetEcn(ns3::Ipv4Header::ECN_CE);
+    }
+    else {
+        ipHeader.SetEcn (ns3::Ipv4Header::ECN_ECT1);
+    }
     //p->AddHeader (ipHeader);
     NS_LOG_INFO("Dummy ip header: " << ipHeader);
     m_tc->Send (m_netDevice, Create<Ipv4QueueDiscItem> (ns3Packet, m_netDevice->GetBroadcast (), Ipv4L3Protocol::PROT_NUMBER, ipHeader));
@@ -164,13 +173,14 @@ NetDeviceTransport::receiveFromNetDevice(Ptr<NetDevice> device,
 
     Ipv4Header ipHeader;
     packet->RemoveHeader(ipHeader);  
-    NS_LOG_DEBUG(ipHeader);    
+    //NS_LOG_DEBUG(ipHeader);    
    
     BlockHeader header;
     packet->RemoveHeader(header);
 
     if (ipHeader.GetEcn() == ns3::Ipv4Header::ECN_CE) { // CE
         //TODO: a more effecient way is needed to add the tag instead encode/decode
+        NS_LOG_DEBUG("ECN_CE detected in Ip header. Set CC mark on Lp packet");
         lp::Packet lpPacket(header.getBlock());
         lpPacket.set<lp::CongestionMarkField>(1);
         this->receive(std::move(Packet(std::move(lpPacket.wireEncode()))));

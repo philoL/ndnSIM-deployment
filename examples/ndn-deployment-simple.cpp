@@ -69,13 +69,8 @@ print_net_device_info(NodeContainer& nodes)
 int 
 main(int argc, char* argv[])
 {
-  // setting default parameters for PointToPoint links and channels
-  Config::SetDefault("ns3::PointToPointNetDevice::DataRate", StringValue("1Mbps"));
-  Config::SetDefault("ns3::PointToPointChannel::Delay", StringValue("10ms"));
-  Config::SetDefault("ns3::QueueBase::MaxSize", StringValue("20p"));
-
-   std::string aredLinkDataRate = "1.5Mbps";
-   std::string aredLinkDelay = "100ms";
+   std::string aredLinkDataRate = "20Mbps";
+   std::string aredLinkDelay = "15ms";
 
   // Read optional command-line parameters (e.g., enable visualizer with ./waf --run=<> --visualize
   CommandLine cmd;
@@ -108,30 +103,17 @@ main(int argc, char* argv[])
   NetDeviceContainer devn3n5;
 
   p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
-  devn0n2 = p2p.Install (n0n2);
+  p2p.SetDeviceAttribute ("DataRate", StringValue ("50Mbps"));
+  p2p.SetChannelAttribute ("Delay", StringValue ("5ms"));
+  devn0n2 = p2p.Install(n0n2);
+  devn1n2 = p2p.Install(n1n2);
+  devn3n4 = p2p.Install(n3n4);
+  devn3n5 = p2p.Install(n3n5);
 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("1ms"));
-  devn1n2 = p2p.Install (n1n2);
-
-  p2p.SetQueue ("ns3::DropTailQueue");
   p2p.SetDeviceAttribute ("DataRate", StringValue (aredLinkDataRate));
-  p2p.SetChannelAttribute ("Delay", StringValue ("100ms"));
+  p2p.SetChannelAttribute ("Delay", StringValue (aredLinkDelay));
   devn2n3 = p2p.Install (n2n3);
 
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("2ms"));
-  devn3n4 = p2p.Install (n3n4);
-
-  p2p.SetQueue ("ns3::DropTailQueue");
-  p2p.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
-  p2p.SetChannelAttribute ("Delay", StringValue ("3ms"));
-  devn3n5 = p2p.Install (n3n5);
- 
   // Install NDN stack on all nodes
   ndn::StackHelper ndnHelper;
   ndnHelper.SetDefaultRoutes(true);
@@ -145,18 +127,17 @@ main(int argc, char* argv[])
   Config::SetDefault ("ns3::RedQueueDisc::Gentle", BooleanValue (true));
   Config::SetDefault ("ns3::RedQueueDisc::QW", DoubleValue (0.002));
   Config::SetDefault ("ns3::RedQueueDisc::MinTh", DoubleValue (5));
-  Config::SetDefault ("ns3::RedQueueDisc::MaxTh", DoubleValue (15));
-  Config::SetDefault ("ns3::RedQueueDisc::ARED", BooleanValue (true));
+  Config::SetDefault ("ns3::RedQueueDisc::MaxTh", DoubleValue (12));  
   Config::SetDefault ("ns3::RedQueueDisc::UseHardDrop", BooleanValue (false));
-  Config::SetDefault ("ns3::RedQueueDisc::LInterm", DoubleValue (10));
+  Config::SetDefault ("ns3::RedQueueDisc::LInterm", DoubleValue (100));
   Config::SetDefault ("ns3::TcpSocketBase::EcnMode", StringValue ("ClassicEcn"));
   Config::SetDefault ("ns3::RedQueueDisc::UseEcn", BooleanValue (true));
- 
+
   QueueDiscContainer queueDiscs;
   // install AQM
   TrafficControlHelper tchPfifo;
   uint16_t handle = tchPfifo.SetRootQueueDisc ("ns3::PfifoFastQueueDisc");
-  tchPfifo.AddInternalQueues (handle, 3, "ns3::DropTailQueue", "MaxSize", StringValue ("1000p"));
+  tchPfifo.AddInternalQueues (handle, 3, "ns3::DropTailQueue", "MaxSize", StringValue ("200p"));
  
   TrafficControlHelper tchRed;
   uint16_t handle1 = tchRed.SetRootQueueDisc ("ns3::RedQueueDisc", "LinkBandwidth", StringValue (aredLinkDataRate),
@@ -178,21 +159,36 @@ main(int argc, char* argv[])
 
   // Installing applications
   // Consumer
-  ndn::AppHelper consumerHelper("ns3::ndn::ConsumerCbr");
+  //ndn::AppHelper consumerHelper("ns3::ndn::ConsumerCbr");
+  ndn::AppHelper consumerHelper("ns3::ndn::ConsumerPcon");
   // Consumer will request /prefix/0, /prefix/1, ...
   consumerHelper.SetPrefix("/prefix");
-  consumerHelper.SetAttribute("Frequency", StringValue("500")); // 10 interests a second
+  //consumerHelper.SetAttribute("Frequency", StringValue("250")); // 10 interests a second
+  consumerHelper.SetAttribute("CcAlgorithm", StringValue("CUBIC"));
+  consumerHelper.SetAttribute("UseCubicFastConvergence", BooleanValue(true));
+  consumerHelper.SetAttribute("LifeTime", StringValue("1s"));
   auto apps = consumerHelper.Install(nodes.Get(0));                // first node
-  apps.Stop(Seconds(10.0)); // stop the consumer app at 10 seconds mark
+  apps.Stop(Seconds(100.0)); // stop the consumer app at 10 seconds mark
 
   // Producer
   ndn::AppHelper producerHelper("ns3::ndn::Producer");
   // Producer will reply to all requests starting with /prefix
   producerHelper.SetPrefix("/prefix");
-  producerHelper.SetAttribute("PayloadSize", StringValue("1024"));
+  producerHelper.SetAttribute("PayloadSize", StringValue("1000"));
   producerHelper.Install(nodes.Get(4)); // last node
 
-  Simulator::Stop(Seconds(20.0));
+// setting default parameters for PointToPoint links and channels
+  std::string folder = "results/";
+  std::string ratesFile = folder + "rates.txt";
+  std::string dropFile = folder + "drop.txt";
+  std::string delayFile = folder + "delay.txt";
+
+  L2RateTracer::InstallAll(dropFile, Seconds(0.05));
+  ndn::L3RateTracer::InstallAll(ratesFile, Seconds(0.05));
+  ndn::AppDelayTracer::InstallAll(delayFile);
+
+
+  Simulator::Stop(Seconds(105.0));
 
   Simulator::Run();
   

@@ -78,10 +78,9 @@ main(int argc, char* argv[])
   // Installing applications
 
   // Consumer
-  ndn::AppHelper consumerHelper("ns3::ndn::ConsumerCbr");
+  ndn::AppHelper consumerHelper("ns3::ndn::ConsumerPcon");
   // Consumer will request /prefix/0, /prefix/1, ...
   consumerHelper.SetPrefix("/prefix");
-  consumerHelper.SetAttribute("Frequency", StringValue("10")); // 10 interests a second
   auto apps = consumerHelper.Install(nodes.Get(0));                        // first node
   apps.Stop(Seconds(10.0)); // stop the consumer app at 10 seconds mark
 
